@@ -1,0 +1,153 @@
+--- grep.c	2016/07/18 01:36:28	1.1
++++ grep.c	2016/07/18 02:29:26
+@@ -80,6 +80,13 @@
+ /* If nonzero, make sure first content char in a line is on a tab stop. */
+ static int align_tabs;
+ 
++/*
++ * Show filename, but only once, on a line by itself,
++ * just before the first match involving that filename;
++ * then show other information, indented.
++ */
++static intmax_t indent = 0;
++
+ /* The group separator used when context is requested. */
+ static const char *group_separator = SEP_STR_GROUP;
+ 
+@@ -287,7 +294,8 @@
+   LINE_BUFFERED_OPTION,
+   LABEL_OPTION,
+   EXCLUDE_DIRECTORY_OPTION,
+-  GROUP_SEPARATOR_OPTION
++  GROUP_SEPARATOR_OPTION,
++  INDENT_OPTION
+ };
+ 
+ /* Long options equivalences. */
+@@ -342,6 +350,7 @@
+   {"unix-byte-offsets", no_argument, NULL, 'u'},
+   {"version", no_argument, NULL, 'V'},
+   {"with-filename", no_argument, NULL, 'H'},
++  {"indent", optional_argument, NULL, INDENT_OPTION},
+   {"word-regexp", no_argument, NULL, 'w'},
+   {0, 0, 0, 0}
+ };
+@@ -357,6 +366,13 @@
+ /* For error messages. */
+ /* The input file name, or (if standard input) "-" or a --label argument.  */
+ static char const *filename;
++
++/*
++ * Have we already shown this filename ?
++ * Applied to --indent option.
++ */
++static int fname_shown = 0;
++
+ static size_t filename_prefix_len;
+ static int errseen;
+ static int write_error_seen;
+@@ -503,6 +519,26 @@
+     }
+ }
+ 
++/* Convert STR to a nonnegative integer, storing the result in *OUT.
++   STR must be a valid indent argument; report an error if it
++   isn't.  Silently ceiling *OUT at the maximum value, as that is
++   practically equivalent to infinity for grep's purposes.  */
++static void
++indent_arg (char const *str, intmax_t *out)
++{
++  switch (xstrtoimax (str, 0, 10, out, ""))
++    {
++    case LONGINT_OK:
++    case LONGINT_OVERFLOW:
++      if (0 <= *out)
++        break;
++      /* Fall through.  */
++    default:
++      error (EXIT_TROUBLE, 0, "%s: %s", str,
++             _("invalid indent argument"));
++    }
++}
++
+ /* Return nonzero if the file with NAME should be skipped.
+    If COMMAND_LINE is nonzero, it is a command-line argument.
+    If IS_DIR is nonzero, it is a directory.  */
+@@ -766,6 +802,24 @@
+   pr_sgr_end_if (color);
+ }
+ 
++static void
++print_indented (void)
++{
++  size_t i;
++
++  if (!fname_shown)
++    {
++      print_filename ();
++      fputc('\n', stdout);
++      fname_shown = 1;
++    }
++
++  for (i = 0; i < indent; ++i)
++    {
++      fputc(' ', stdout);
++    }
++}
++
+ /* Print a whole line head (filename, line, byte).  */
+ static void
+ print_line_head (char const *beg, char const *lim, int sep)
+@@ -774,8 +828,12 @@
+ 
+   if (out_file)
+     {
+-      print_filename ();
+-      if (filename_mask)
++      if (indent)
++        print_indented();
++      else
++        print_filename ();
++
++      if (filename_mask && !indent)
+         pending_sep = 1;
+       else
+         fputc (0, stdout);
+@@ -1281,6 +1339,7 @@
+     }
+ 
+   filename = ent->fts_path + filename_prefix_len;
++  fname_shown = 0;
+   follow = (fts->fts_options & FTS_LOGICAL
+             || (fts->fts_options & FTS_COMFOLLOW && command_line));
+ 
+@@ -1505,11 +1564,13 @@
+   if (STREQ (arg, "-"))
+     {
+       filename = label ? label : _("(standard input)");
++      fname_shown = 0;
+       return grepdesc (STDIN_FILENO, 1);
+     }
+   else
+     {
+       filename = arg;
++      fname_shown = 0;
+       return grepfile (AT_FDCWD, arg, 1, 1);
+     }
+ }
+@@ -2031,6 +2092,15 @@
+         no_filenames = 0;
+         break;
+ 
++      case INDENT_OPTION:
++        if (optarg)
++          {
++            indent_arg (optarg, &indent);
++          }
++        else
++          indent = 4;
++        break;
++
+       case 'I':
+         binary_files = WITHOUT_MATCH_BINARY_FILES;
+         break;
