@@ -1,5 +1,5 @@
 --- grep.c	2016/07/18 01:36:28	1.1
-+++ grep.c	2016/07/18 02:29:26
++++ grep.c	2017/01/19 11:11:36
 @@ -80,6 +80,13 @@
  /* If nonzero, make sure first content char in a line is on a tab stop. */
  static int align_tabs;
@@ -98,22 +98,31 @@
  /* Print a whole line head (filename, line, byte).  */
  static void
  print_line_head (char const *beg, char const *lim, int sep)
-@@ -774,8 +828,12 @@
+@@ -774,11 +828,19 @@
  
    if (out_file)
      {
 -      print_filename ();
 -      if (filename_mask)
+-        pending_sep = 1;
 +      if (indent)
-+        print_indented();
-+      else
-+        print_filename ();
-+
-+      if (filename_mask && !indent)
-         pending_sep = 1;
++        {
++          print_indented ();
++          pending_sep = 0;
++        }
        else
-         fputc (0, stdout);
-@@ -1281,6 +1339,7 @@
+-        fputc (0, stdout);
++        {
++          print_filename ();
++          if (filename_mask)
++            pending_sep = 1;
++          else
++            fputc (0, stdout);
++        }
+     }
+ 
+   if (out_line)
+@@ -1281,6 +1343,7 @@
      }
  
    filename = ent->fts_path + filename_prefix_len;
@@ -121,7 +130,7 @@
    follow = (fts->fts_options & FTS_LOGICAL
              || (fts->fts_options & FTS_COMFOLLOW && command_line));
  
-@@ -1505,11 +1564,13 @@
+@@ -1505,11 +1568,13 @@
    if (STREQ (arg, "-"))
      {
        filename = label ? label : _("(standard input)");
@@ -135,7 +144,7 @@
        return grepfile (AT_FDCWD, arg, 1, 1);
      }
  }
-@@ -2031,6 +2092,15 @@
+@@ -2031,6 +2096,15 @@
          no_filenames = 0;
          break;
  
