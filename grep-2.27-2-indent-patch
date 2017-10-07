@@ -1,0 +1,161 @@
+--- grep.c	2017/10/07 02:15:17	1.1
++++ grep.c	2017/10/07 03:20:49
+@@ -189,6 +189,14 @@
+ static void asan_poison (void const volatile *addr, size_t size) { }
+ #endif
+ 
++/*
++ * Show filename, but only once, on a line by itself,
++ * just before the first match involving that filename.
++ * For any matches after the first for each filename,
++ * show just the rest of the line head (line, byte), indented.
++ */
++static intmax_t indent = 0;
++
+ /* The group separator used when context is requested. */
+ static const char *group_separator = SEP_STR_GROUP;
+ 
+@@ -437,7 +445,8 @@
+   GROUP_SEPARATOR_OPTION,
+   INCLUDE_OPTION,
+   LINE_BUFFERED_OPTION,
+-  LABEL_OPTION
++  LABEL_OPTION,
++  INDENT_OPTION
+ };
+ 
+ /* Long options equivalences. */
+@@ -492,6 +501,7 @@
+   {"unix-byte-offsets", no_argument, NULL, 'u'},
+   {"version", no_argument, NULL, 'V'},
+   {"with-filename", no_argument, NULL, 'H'},
++  {"indent", optional_argument, NULL, INDENT_OPTION},
+   {"word-regexp", no_argument, NULL, 'w'},
+   {0, 0, 0, 0}
+ };
+@@ -507,6 +517,13 @@
+ /* For error messages. */
+ /* The input file name, or (if standard input) null or a --label argument.  */
+ static char const *filename;
++
++/*
++ * Have we already shown this filename ?
++ * Applied to --indent option.
++ */
++static int fname_shown = 0;
++
+ /* Omit leading "./" from file names in diagnostics.  */
+ static bool omit_dot_slash;
+ static bool errseen;
+@@ -787,6 +804,26 @@
+   return EXCLUDE_WILDCARDS | (command_line ? 0 : EXCLUDE_ANCHORED);
+ }
+ 
++/* Convert STR to a nonnegative integer, storing the result in *OUT.
++   STR must be a valid indent argument; report an error if it
++   isn't.  Silently ceiling *OUT at the maximum value, as that is
++   practically equivalent to infinity for grep's purposes.  */
++static void
++indent_arg (char const *str, intmax_t *out)
++{
++  switch (xstrtoimax (str, 0, 10, out, ""))
++    {
++    case LONGINT_OK:
++    case LONGINT_OVERFLOW:
++      if (0 <= *out)
++        break;
++      /* Fall through.  */
++    default:
++      error (EXIT_TROUBLE, 0, "%s: %s", str,
++             _("invalid indent argument"));
++    }
++}
++
+ /* Return true if the file with NAME should be skipped.
+    If COMMAND_LINE, it is a command-line argument.
+    If IS_DIR, it is a directory.  */
+@@ -1089,6 +1126,24 @@
+   pr_sgr_end_if (color);
+ }
+ 
++static void
++print_indented (void)
++{
++  size_t i;
++
++  if (!fname_shown)
++    {
++      print_filename ();
++      fputc('\n', stdout);
++      fname_shown = 1;
++    }
++
++  for (i = 0; i < indent; ++i)
++    {
++      fputc(' ', stdout);
++    }
++}
++
+ /* Print a whole line head (filename, line, byte).  The output data
+    starts at BEG and contains LEN bytes; it is followed by at least
+    sizeof (uword) bytes, the first of which may be temporarily modified.
+@@ -1115,11 +1170,18 @@
+ 
+   if (out_file)
+     {
+-      print_filename ();
+-      if (filename_mask)
+-        print_sep (sep);
++      if (indent)
++        {
++          print_indented ();
++        }
+       else
+-        putchar_errno (0);
++        {
++          print_filename ();
++          if (filename_mask)
++            print_sep (sep);
++          else
++            putchar_errno (0);
++        }
+     }
+ 
+   if (out_line)
+@@ -1630,6 +1692,7 @@
+     }
+ 
+   filename = ent->fts_path;
++  fname_shown = 0;
+   if (omit_dot_slash && filename[1])
+     filename += 2;
+   follow = (fts->fts_options & FTS_LOGICAL
+@@ -1911,6 +1974,12 @@
+ static bool
+ grep_command_line_arg (char const *arg)
+ {
++  /*
++   * This is a new filename argument, so reset any record there may be
++   * that the current filename has already been shown.
++   */
++  fname_shown = 0;
++
+   if (STREQ (arg, "-"))
+     {
+       filename = label;
+@@ -2479,6 +2548,15 @@
+         no_filenames = false;
+         break;
+ 
++      case INDENT_OPTION:
++        if (optarg)
++          {
++            indent_arg (optarg, &indent);
++          }
++        else
++          indent = 4;
++        break;
++
+       case 'I':
+         binary_files = WITHOUT_MATCH_BINARY_FILES;
+         break;
