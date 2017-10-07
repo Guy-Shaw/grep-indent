@@ -83,7 +83,8 @@ Thanks for the open source.
 
 The is a patch to GNU software.
 
-It inherits the license of the source code to GNU grep 2.20.
+It inherits the licenses of the source code
+to GNU grep-2.20 and grep-2.27-2, respectively.
 
 
 This program is free software; you can redistribute it and/or modify
