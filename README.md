@@ -1,10 +1,6 @@
 # grep --indent
 
-## Patch to grep-2.20 to implement grep --indent
-
-This patch modifies grep-2.20
-to implement a new grep output format,
-`grep --indent`.
+## Patch to grep to implement grep --indent
 
 With this option, the format of grep output is changed
 so that each filename is printed just once,
@@ -50,19 +46,30 @@ than just patching grep.
 
 It is open source.  You can do that.
 
-## Why grep 2.20
+## Versions
 
-The latest (as of 2016-Jul-17) version of GNU grep is 2.25.
-Why make a patch to version 2.20?
+Patches to grep.c are provided to implement the new grep output format,
+`grep --indent`, for the following versions:
 
-Because I am on Ubuntu 15.04,
-and grep-2.20 is what I get when I run
+1. grep-2.20
+2. grep-2-27-2
+
+These versions are supported, and other versions are not, because
+these are the versions that happen to come out of the box with
+whatever GNU/Linux distribution I am running.
+
+Grep 2.20 came with Ubuntu 15.04.
+
+Grep 2.27-2 came with Ubuntu 17.04.
+
+Whenever I upgrade, I make another version of the patch,
+by running
 
 ```
     apt-get source --compile grep
 ```
 
-When I upgrade my Linux box, I will update the patch.
+and fiddling with any necessary changes to the patch.
 
 ## Thank you
 
